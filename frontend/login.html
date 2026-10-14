@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#222B21">
+  <title>Operator Access | VitaBand 2.0</title>
+  <link rel="stylesheet" href="login.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<main class="login-shell">
+  <div class="login-layout">
+    <section class="field-panel" aria-labelledby="fieldTitle">
+      <div class="field-grid" aria-hidden="true"></div>
+      <div class="field-content">
+        <div class="login-brand-lockup">
+          <div class="login-brand-emblem">
+            <span class="login-brand-glow" aria-hidden="true"></span>
+            <img class="login-brand-logo" src="assets/vitaband-logo.png?v=2" alt="VitaBand emblem">
+          </div>
+          <div class="login-brand-copy">
+            <h1 id="fieldTitle">VitaBand 2.0</h1>
+            <p>Wearables Soldier’s Health and Location Monitoring Band</p>
+          </div>
+        </div>
+      </div>
+      </section>
+
+      <section class="login-card" aria-labelledby="loginTitle">
+        <div class="access-label"><i data-lucide="lock-keyhole"></i> RESTRICTED ACCESS <span>01</span></div>
+        <div class="login-intro">
+          <span class="login-eyebrow">OPERATOR AUTHENTICATION</span>
+          <h2 id="loginTitle">Sign in</h2>
+          <p id="loginDescription">Sign in with your operator account to access the dashboard.</p>
+        </div>
+
+        <form id="loginForm" autocomplete="off">
+          <div class="auth-field" id="displayNameField" hidden>
+            <label for="displayName">OPERATOR NAME</label>
+            <div class="input-wrap">
+              <i data-lucide="user-round"></i>
+              <input id="displayName" name="displayName" type="text" autocomplete="name" maxlength="80" placeholder="Enter your name" disabled>
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label for="email">OPERATOR EMAIL</label>
+            <div class="input-wrap">
+              <i data-lucide="mail"></i>
+              <input id="email" name="email" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254" placeholder="Enter your operator email" required autofocus>
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label for="password">PASSWORD</label>
+            <div class="input-wrap">
+              <i data-lucide="key-round"></i>
+              <input id="password" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="128" placeholder="Enter your password" required>
+              <button class="password-toggle" id="passwordToggle" type="button" aria-label="Show password" title="Show password"><i data-lucide="eye"></i></button>
+            </div>
+          </div>
+
+          <div class="auth-field" id="confirmPasswordField" hidden>
+            <label for="confirmPassword">CONFIRM PASSWORD</label>
+            <div class="input-wrap">
+              <i data-lucide="key-round"></i>
+              <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="6" maxlength="128" placeholder="Re-enter your password" disabled>
+            </div>
+          </div>
+
+          <p class="login-error" id="loginError" role="alert" hidden></p>
+          <button class="sign-in-button" id="signInButton" type="submit">
+            <span>Login</span>
+          </button>
+        </form>
+        <p class="auth-switch"><span id="authSwitchText">Need an account?</span> <button id="authModeToggle" type="button">Create an account</button></p>
+
+        <div class="login-security"><i data-lucide="shield-check"></i><span>AUTHORIZED OPERATORS ONLY</span></div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="login.js"></script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#222B21">
+  <title>VitaBand 2.0 | Device Monitor</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><img src="assets/vitaband-logo.png?v=2" alt="VitaBand logo"></div>
+        <div><strong>VITABAND</strong><small>2.0 / ARMY HEALTH</small></div>
+      </div>
+      <div class="nav-label">COMMAND CENTER</div>
+      <nav class="main-nav">
+        <a class="nav-item active" href="#overview"><i data-lucide="layout-dashboard"></i><span>Overview</span></a>
+        <a class="nav-item" href="#monitoring"><i data-lucide="activity"></i><span>Heart rate</span></a>
+        <a class="nav-item" href="#locations"><i data-lucide="map-pin"></i><span>Device location</span></a>
+        <a class="nav-item" href="#alerts"><i data-lucide="siren"></i><span>Device activity</span></a>
+        <a class="nav-item" href="#history"><i data-lucide="history"></i><span>History</span></a>
+      </nav>
+      <div class="nav-label system-label">SYSTEM</div>
+      <nav class="main-nav">
+        <a class="nav-item" href="#settings"><i data-lucide="settings-2"></i><span>Device settings</span></a>
+        <a class="nav-item" href="#help"><i data-lucide="circle-help"></i><span>Help & support</span></a>
+      </nav>
+      <div class="sidebar-account">
+        <div class="operator">
+          <div class="avatar"><span id="operatorInitials">OP</span><img id="operatorPhoto" alt="" hidden></div>
+          <button class="operator-name-button" id="editOperatorName" type="button" title="Edit profile">
+            <strong id="operatorName">OPERATOR</strong><small>Profile & account</small>
+          </button>
+        </div>
+        <button class="sidebar-logout-button" id="logoutButton" type="button"><i data-lucide="log-out"></i><span>Log out</span></button>
+      </div>
+      <div class="sidebar-bottom">
+        <span class="online-dot api-offline" id="firebaseSidebarDot"></span>
+        <div><strong>DATABASE CONNECTING</strong><small>Waiting for database</small></div>
+      </div>
+    </aside>
+
+    <main class="main-content" id="overview">
+      <header class="topbar">
+        <button class="mobile-menu" id="menuToggle" aria-label="Toggle navigation"><i data-lucide="menu"></i></button>
+        <div class="page-heading">
+          <div class="eyebrow">OPERATIONS / OVERVIEW</div>
+          <h1>VitaBand Device Monitor</h1>
+          <p>Live monitoring for VitaBand VB-01.</p>
+        </div>
+        <div class="top-actions">
+          <div class="system-pill" role="status" aria-live="polite"><span class="online-dot api-offline" id="apiStatusDot"></span><span id="apiStatus">DATABASE CONNECTING</span></div>
+          <button class="icon-button theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode"><i data-lucide="moon"></i></button>
+          <button class="icon-button" id="refreshButton" title="Refresh display" aria-label="Refresh display"><i data-lucide="refresh-cw"></i></button>
+          <button class="icon-button admin-notification-button" id="adminNotificationButton" type="button" aria-label="Operator account requests" title="Operator account requests" hidden>
+            <i data-lucide="bell"></i><span class="admin-notification-badge" id="adminNotificationBadge" hidden>0</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="vitals-hero" aria-label="VitaBand heart rate reading">
+        <div class="vitals-copy">
+          <div class="vitals-kicker"><span class="pulse-indicator"></span> DEVICE VITALS <span class="vitals-demo-tag" id="dataModeTag">WAITING FOR DEVICE DATA</span></div>
+          <div class="vitals-reading"><span id="heartRateValue">—</span><div><strong>BPM</strong><small>Heart rate</small></div></div>
+          <p>VitaBand <strong>VB-01</strong> <span class="vitals-divider">·</span> Wearable monitor</p>
+        </div>
+        <div class="vitals-visual" aria-hidden="true">
+          <div class="vitals-visual-label"><span>HEART RATE TREND</span><span>RECENT READINGS</span></div>
+          <svg viewBox="0 0 480 110" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="vitalsFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#C2B280" stop-opacity=".34"/>
+                <stop offset="100%" stop-color="#C2B280" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path class="vitals-area" d=""/>
+            <path class="vitals-line" d=""/>
+            <circle class="vitals-point" cx="0" cy="0" r="5" visibility="hidden"/>
+          </svg>
+          <div class="vitals-visual-foot"><span id="trendStart">—</span><span id="trendStatus">Waiting for Firebase data</span><span id="trendEnd">—</span></div>
+        </div>
+        <div class="vitals-side">
+          <div class="vitals-side-icon"><i data-lucide="watch"></i></div>
+          <span>MONITORING</span>
+          <strong>One device</strong>
+          <small id="deviceLinkSummary">VB-01 · waiting</small>
+        </div>
+      </section>
+
+      <section class="kpi-grid" aria-label="VitaBand device status">
+        <article class="kpi-card">
+          <div class="kpi-top"><span class="kpi-icon blue"><i data-lucide="activity"></i></span><span class="kpi-tag">ACTIVITY</span></div>
+          <div class="kpi-label">MOVEMENT</div><div class="kpi-value value-text" id="movementValue">Waiting</div><div class="kpi-foot" id="movementFoot">Waiting for Firebase data</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-top"><span class="kpi-icon green"><i data-lucide="map-pin"></i></span><span class="kpi-tag">GPS</span></div>
+          <div class="kpi-label">LOCATION STATUS</div><div class="kpi-value value-text" id="gpsValue">Waiting</div><div class="kpi-foot" id="gpsFoot">Waiting for Firebase data</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-top"><span class="kpi-icon amber"><i data-lucide="radio-tower"></i></span><span class="kpi-tag">DEVICE LINK</span></div>
+          <div class="kpi-label">LORA LINK</div><div class="kpi-value value-text" id="loraValue">Waiting</div><div class="kpi-foot" id="loraFoot">Waiting for Firebase data</div>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel map-panel" id="locations">
+          <div class="panel-header">
+            <div><h2>Device location</h2><p>Firebase location · Last update <span id="lastUpdated">--:--:--</span></p></div>
+            <button class="subtle-button" id="mapViewButton"><i data-lucide="maximize-2"></i> Map view</button>
+          </div>
+          <div class="map-area" id="mapArea" role="application" aria-label="Map showing the VitaBand device location">
+            <div class="map-legend"><span><i class="legend-dot normal"></i> VB-01 location</span></div>
+          </div>
+          <div class="map-footer"><span><i data-lucide="info"></i> The device marker appears when a GPS fix is available.</span><span class="map-coords">LIVE DEVICE LOCATION</span></div>
+        </article>
+
+        <article class="panel alerts-panel" id="alerts">
+          <div class="panel-header">
+            <div><h2>Device activity</h2><p>Most recent reading received from VB-01</p></div>
+            <span class="count-badge clear-badge" id="activityStatus">WAITING FOR DATA</span>
+          </div>
+          <div class="activity-heading"><span>LATEST DEVICE MESSAGE</span><button id="showHistory" type="button">View history <i data-lucide="arrow-right"></i></button></div>
+          <div class="activity-list" id="deviceActivityList" aria-live="polite"><p class="activity-empty">No readings available yet.</p></div>
+        </article>
+
+        <article class="panel chart-panel" id="monitoring">
+          <div class="panel-header">
+            <div><h2>Heart rate trend</h2><p>Live readings from one VitaBand device</p></div>
+            <div class="chart-legend"><span class="legend-line"></span> HEART RATE</div>
+          </div>
+          <div class="chart-wrap" id="history"><canvas id="heartChart" aria-label="VitaBand device heart rate line chart"></canvas><div class="chart-empty-state" id="historyEmptyState">No historical readings available yet.</div></div>
+          <div class="chart-foot"><span><i data-lucide="clock-3"></i> Stored history</span><span>VB-01 · BPM</span></div>
+        </article>
+
+        <article class="panel roster-panel">
+          <div class="panel-header">
+            <div><h2>Device status</h2><p>1 VitaBand Device</p></div>
+            <span class="status-chip unknown-chip" id="deviceConnectionStatus"><i></i> UNKNOWN</span>
+          </div>
+          <div class="roster-table">
+            <div class="roster-head"><span>DEVICE</span><span>HEART RATE</span><span>STATUS</span></div>
+            <div class="soldier-row" data-status="unknown"><div class="soldier-cell"><div class="soldier-avatar"><i data-lucide="watch"></i></div><div><b>VB-01</b><small>VitaBand device</small></div></div><span class="heart-rate"><span id="rosterHeartRate">—</span> <small>BPM</small></span><span class="status-chip unknown-chip" id="deviceHealthStatus"><i></i> UNKNOWN</span></div>
+          </div>
+          <div class="roster-foot"><span id="deviceLastSeen">No readings received</span><button id="exportButton"><i data-lucide="download"></i> Export status</button></div>
+        </article>
+      </section>
+      <footer class="page-footer"><span>VITABAND 2.0</span><span>LIVE DATA · FIREBASE REALTIME DATABASE</span></footer>
+    </main>
+  </div>
+  <div class="dialog-backdrop utility-backdrop" id="settingsBackdrop" hidden>
+      <section class="dialog-panel utility-dialog" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <header class="utility-page-header">
+          <div>
+            <div class="eyebrow">SYSTEM</div>
+            <h2 id="settingsTitle">Device settings</h2>
+            <p>View the active monitor configuration and use its quick actions.</p>
+          </div>
+          <button class="icon-button dialog-close" id="closeSettings" type="button" aria-label="Close device settings"><i data-lucide="x"></i></button>
+        </header>
+        <div class="utility-grid settings-grid">
+          <article class="panel utility-card">
+            <div class="utility-card-icon"><i data-lucide="watch"></i></div>
+            <div><span class="utility-label">DEVICE</span><strong>VB-01</strong></div>
+            <p>Single-device VitaBand monitor. The device ID is fixed for this dashboard.</p>
+          </article>
+          <article class="panel utility-card">
+            <div class="utility-card-icon"><i data-lucide="database"></i></div>
+            <div><span class="utility-label">LIVE DATA SOURCE</span><strong>Firebase Realtime Database</strong></div>
+            <p>Reading path: <code>devices/VB-01</code>. Updates appear automatically when the device publishes data.</p>
+          </article>
+          <article class="panel utility-card">
+            <div class="utility-card-icon"><i data-lucide="activity"></i></div>
+            <div><span class="utility-label">DISPLAY</span><strong>Heart rate in BPM</strong></div>
+            <p>Movement, GPS, and LoRa status are shown when valid device readings are available.</p>
+          </article>
+        </div>
+        <div class="utility-actions" aria-label="Device dashboard actions">
+          <button class="subtle-button" id="settingsRefreshButton" type="button"><i data-lucide="refresh-cw"></i> Refresh readings</button>
+          <button class="subtle-button" id="settingsMapButton" type="button"><i data-lucide="map"></i> Toggle map view</button>
+          <button class="subtle-button" id="settingsThemeButton" type="button"><i data-lucide="sun-moon"></i> Change appearance</button>
+        </div>
+      </section>
+  </div>
+  <div class="dialog-backdrop utility-backdrop" id="helpBackdrop" hidden>
+      <section class="dialog-panel utility-dialog" id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <header class="utility-page-header">
+          <div>
+            <div class="eyebrow">SUPPORT</div>
+            <h2 id="helpTitle">Help &amp; support</h2>
+            <p>Quick guidance for sign-in, live data, and profile issues.</p>
+          </div>
+          <button class="icon-button dialog-close" id="closeHelp" type="button" aria-label="Close help and support"><i data-lucide="x"></i></button>
+        </header>
+        <div class="utility-grid help-grid">
+          <article class="panel help-card">
+            <h3><i data-lucide="radio"></i> No live device data</h3>
+            <p>Use <strong>Refresh readings</strong>, then confirm that a valid reading exists at <code>devices/VB-01</code> in Firebase Realtime Database.</p>
+          </article>
+          <article class="panel help-card">
+            <h3><i data-lucide="shield-alert"></i> Firebase access error</h3>
+            <p>Ask the administrator to verify the database rules and confirm that your operator account is approved.</p>
+          </article>
+          <article class="panel help-card">
+            <h3><i data-lucide="user-round"></i> Account or profile issue</h3>
+            <p>Pending account requests need administrator approval. If profile saving reports that the service is unavailable, ask the administrator to restart the dashboard server.</p>
+          </article>
+        </div>
+        <p class="support-note"><i data-lucide="info"></i> There is no in-app support ticket or contact channel configured; contact your VitaBand administrator for assistance.</p>
+      </section>
+  </div>
+  <div class="dialog-backdrop" id="adminRequestsBackdrop" hidden>
+    <section class="dialog-panel admin-requests-panel" id="adminRequestsPanel" role="dialog" aria-modal="true" aria-labelledby="adminRequestsTitle">
+      <div class="panel-header">
+        <div><h2 id="adminRequestsTitle">Operator account requests</h2><p>Review pending requests and choose whether to grant dashboard access.</p></div>
+        <div class="dialog-actions">
+          <button class="subtle-button" id="refreshRequests" type="button"><i data-lucide="refresh-cw"></i> Refresh</button>
+          <button class="icon-button dialog-close" id="closeAdminRequests" type="button" aria-label="Close account requests"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+      <p class="admin-request-notice" id="adminRequestNotice" role="status" aria-live="polite" hidden></p>
+      <div class="admin-requests-list" id="adminRequestsList" aria-live="polite">
+        <div class="admin-request-state">Loading requests…</div>
+      </div>
+    </section>
+  </div>
+  <div class="dialog-backdrop" id="profileDialogBackdrop" hidden>
+    <section class="dialog-panel profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
+      <div class="panel-header">
+        <div><h2 id="profileDialogTitle">Edit profile</h2><p>Update the name and picture shown on this dashboard.</p></div>
+        <button class="icon-button dialog-close" id="closeProfileDialog" type="button" aria-label="Close profile editor"><i data-lucide="x"></i></button>
+      </div>
+      <form id="profileDialogForm">
+        <div class="profile-photo-picker">
+          <button class="profile-photo-preview" id="chooseProfilePhotoAvatar" type="button" aria-label="Choose a profile photo">
+            <span id="profilePhotoInitials">OP</span><img id="profilePhotoPreview" alt="" hidden>
+            <span class="profile-photo-camera"><i data-lucide="camera"></i></span>
+          </button>
+          <span class="profile-photo-picker-copy"><strong>Profile picture</strong><small>Choose a photo from your device</small></span>
+          <button class="subtle-button choose-profile-photo-button" id="chooseProfilePhoto" type="button">Choose photo</button>
+          <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+        </div>
+        <label for="profileDialogName">Display name</label>
+        <input id="profileDialogName" name="displayName" type="text" maxlength="80" autocomplete="name" required>
+        <label for="profileBirthday">Birthday</label>
+        <input id="profileBirthday" name="birthday" type="date" autocomplete="bday">
+        <label for="profilePosition">Position</label>
+        <input id="profilePosition" name="position" type="text" maxlength="80" autocomplete="organization-title" placeholder="Enter your position">
+        <label for="profileGender">Gender</label>
+        <select id="profileGender" name="gender">
+          <option value="">Prefer not to say</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+          <option value="other">Other</option>
+        </select>
+        <p class="profile-dialog-error" id="profileDialogError" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button class="subtle-button" id="cancelProfileDialog" type="button">Cancel</button>
+          <button class="subtle-button profile-save-button" id="saveProfileDialog" type="submit">Save profile</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

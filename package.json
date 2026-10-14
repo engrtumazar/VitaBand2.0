@@ -1,0 +1,16 @@
+{
+  "name": "vitaband-iot-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Single-device VitaBand IoT dashboard with authenticated Firebase ingestion",
+  "engines": {
+    "node": ">=20.18.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env backend/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0"
+  }
+}

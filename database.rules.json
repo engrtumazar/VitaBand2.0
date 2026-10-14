@@ -1,0 +1,22 @@
+{
+  "rules": {
+    "approvedOperators": {
+      ".read": false,
+      ".write": false
+    },
+    "operatorRequests": {
+      ".read": false,
+      ".write": false
+    },
+    "operatorProfiles": {
+      ".read": false,
+      ".write": false
+    },
+    "devices": {
+      "VB-01": {
+        ".read": "auth != null && root.child('approvedOperators').child(auth.uid).val() == true",
+        ".write": false
+      }
+    }
+  }
+}
