@@ -165,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const message = messages[error.code] ||
         (mode === 'signup'
           ? error.message || 'Account request failed. Check your details and try again.'
-          : 'Sign-in failed. Check your credentials and Firebase Authentication setup.');
+          : error.message || 'Sign-in failed. Check your credentials and Firebase Authentication setup.');
       showMessage(message);
       isSubmitting = false;
       submitButton.disabled = false;
