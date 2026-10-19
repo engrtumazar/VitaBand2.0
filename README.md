@@ -122,6 +122,8 @@ On an Android phone, an approved dashboard user can select **Share this phone's 
 
 Phone locations are written by the authenticated backend to `deviceLocations/VB-01`, separately from the device sensor record. Only approved dashboard users can read them, and Firebase client writes remain denied. Publish the updated [`database.rules.json`](database.rules.json) to enable reads. Sharing is opt-in, updates while the dashboard page is open, and can be stopped with **Stop sharing**. Use the dashboard over HTTPS on the phone; browser geolocation is unavailable on ordinary HTTP LAN addresses. This browser-based trial is foreground-only and is not a native Android background tracking app. If the page is closed or updates stop, the last phone position becomes stale after `DEVICE_STALE_AFTER_MS`.
 
+The wearable OLED can use a fresh phone location as a fallback to its onboard GPS, but labels the displayed position only as `GPS` without showing `PHONE`.
+
 ## Operator accounts
 
 Operators request an account from the login page. The backend creates it disabled, and only the configured administrator can approve or decline the pending request. Approved operators can read the device record and edit their profile. The backend verifies Firebase ID tokens for protected operator and administrator APIs. Browser sessions use Firebase Authentication session persistence.
