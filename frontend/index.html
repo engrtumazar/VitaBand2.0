@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#222B21">
   <title>VitaBand 2.0 | Device Monitor</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="admin.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -111,19 +111,37 @@
       <section class="content-grid">
         <article class="panel map-panel" id="locations">
           <div class="panel-header">
-            <div><h2>Device location</h2><p>Firebase location · Last update <span id="lastUpdated">--:--:--</span></p></div>
+            <div>
+              <h2>Live device tracking</h2>
+              <p><span id="mapLocationSource">Waiting for location</span> · Location time <time id="mapLocationUpdatedAt">Not recorded</time></p>
+              <p>Band sensor sent <time id="sensorSentAt">Waiting for data</time></p>
+              <p>Server received <time id="serverReceivedAt">Not recorded</time></p>
+            </div>
             <button class="subtle-button" id="mapViewButton"><i data-lucide="maximize-2"></i> Map view</button>
           </div>
-          <div class="map-area" id="mapArea" role="application" aria-label="Map showing the VitaBand device location">
-            <div class="map-legend"><span><i class="legend-dot normal"></i> VB-01 location</span></div>
+          <div class="phone-location-control">
+            <p id="phoneLocationHelp">Phone GPS backup: start sharing only when this Android phone stays with the VitaBand wearer. Sharing stops when you stop it or close this page.</p>
+            <div>
+              <button class="subtle-button" id="startPhoneLocationButton" type="button"><i data-lucide="radio"></i> Share this phone's location</button>
+              <button class="subtle-button" id="stopPhoneLocationButton" type="button" hidden><i data-lucide="radio-off"></i> Stop sharing</button>
+            </div>
           </div>
-          <div class="map-footer"><span><i data-lucide="info"></i> The device marker appears when a GPS fix is available.</span><span class="map-coords">LIVE DEVICE LOCATION</span></div>
+          <div class="map-area" id="mapArea" role="application" aria-label="Map showing the VitaBand device location">
+            <div class="map-canvas" id="mapCanvas"></div>
+            <div class="map-tracking-status waiting" id="mapTrackingStatus" role="status" aria-live="polite"><span class="map-tracking-dot"></span><span>WAITING FOR LOCATION</span></div>
+            <div class="map-legend"><span><i class="legend-dot normal"></i> <span id="mapLegendLabel">VB-01 position unavailable</span></span></div>
+          </div>
+          <div class="map-footer"><span><i data-lucide="crosshair"></i> Reported position with source and freshness shown.</span><span class="map-coords">WAITING FOR LOCATION</span></div>
         </article>
 
         <article class="panel alerts-panel" id="alerts">
           <div class="panel-header">
             <div><h2>Device activity</h2><p>Most recent reading received from VB-01</p></div>
             <span class="count-badge clear-badge" id="activityStatus">WAITING FOR DATA</span>
+          </div>
+          <div class="sos-alert" id="sosAlert" role="alert" aria-live="assertive" hidden>
+            <i data-lucide="siren" aria-hidden="true"></i>
+            <div><strong>SOS RECEIVED · VB-01</strong><span>Help request received by dashboard · <time id="sosReceivedAt"></time></span></div>
           </div>
           <div class="activity-heading"><span>LATEST DEVICE MESSAGE</span><button id="showHistory" type="button">View history <i data-lucide="arrow-right"></i></button></div>
           <div class="activity-list" id="deviceActivityList" aria-live="polite"><p class="activity-empty">No readings available yet.</p></div>
@@ -267,7 +285,7 @@
     </section>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
   <script type="module" src="script.js"></script>
 </body>
 </html>

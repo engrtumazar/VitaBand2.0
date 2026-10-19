@@ -1,0 +1,53 @@
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 14a480f..b274e8f 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -4,17 +4,16 @@[m [mThe existing dashboard monitors device `VB-01` using Firebase Authentication and[m
+ [m
+ The supported data flow is:[m
+ [m
+[31m-`VitaBand sensors â†’ LoRa â†’ ESP32 receiver â†’ HTTPS â†’ Node.js ingestion API â†’ Firebase Realtime Database â†’ authenticated dashboard`[m
+[32m+[m[32m`VitaBand sensors → LoRa → ESP32 receiver → HTTPS → Node.js ingestion API → Firebase Realtime Database → authenticated dashboard`[m
+ [m
+ The software is prepared for hardware integration, but no physical receiver has been connected or verified. Until it submits actual readings, the dashboard shows an empty state.[m
+ [m
+ ## Run locally[m
+ [m
+[31m-Use Node.js 20.18 or newer. Install dependencies and create a private local environment file:[m
+[32m+[m[32mUse Node.js 20.18 or newer. Install dependencies and create a private local `.env` file manually; this repository does not include an `.env.example` template:[m
+ [m
+ ```powershell[m
+ npm install[m
+[31m-Copy-Item .env.example .env[m
+ ```[m
+ [m
+ Edit `.env` with actual values. Keep `.env` and the Firebase service-account key out of source control. Store the key outside this project and point `GOOGLE_APPLICATION_CREDENTIALS` to its path. Generate a device token with:[m
+[36m@@ -36,11 +35,11 @@[m [mOpen <http://127.0.0.1:3000>. The default server binds to loopback and uses HTTP[m
+ [m
+ The browser configuration in `frontend/firebase.js` is Firebase Web App configuration. Its API key is not a service-account credential; security depends on Firebase Authentication and database rules. Never place the Admin SDK service-account key or device token in frontend files.[m
+ [m
+[31m-1. Enable **Authentication â†’ Sign-in method â†’ Email/Password** in Firebase Console.[m
+[32m+[m[32m1. Enable **Authentication → Sign-in method → Email/Password** in Firebase Console.[m
+ 2. Create the administrator account. Add its UID at `approvedOperators/{uid}` with value `true`; set its email as `VITABAND_ADMIN_EMAIL`.[m
+ 3. Create a Firebase service account for project `vitaband-d0f19`. Store its JSON key outside this project. Set `GOOGLE_APPLICATION_CREDENTIALS` to the full key path.[m
+ 4. Publish the existing rules from [`database.rules.json`](database.rules.json). Approved users may read `devices/VB-01`; client writes to device data, operator requests, approvals, and profiles are denied. The trusted backend uses Admin SDK and validates device requests before writing.[m
+[31m-5. Add the local or deployed dashboard hostname under **Authentication â†’ Settings â†’ Authorized domains**.[m
+[32m+[m[32m5. Add the local or deployed dashboard hostname under **Authentication → Settings → Authorized domains**.[m
+ [m
+ The backend does not seed, initialize, or clear Firebase records. Existing data remains at `devices/VB-01`.[m
+ [m
+[36m@@ -51,11 +50,12 @@[m [mSubmit one reading with:[m
+ - Method: `POST`[m
+ - Local path: `http://127.0.0.1:3000/api/device/readings`[m
+ - Production path: `https://<your-dashboard-host>/api/device/readings`[m
+[31m-- Headers: `Content-Type: application/json` and `Authorization: Bearer <VITABAND_DEVICE_TOKEN>`[m
+[32m+[m[32m- Headers: `Content-Type: application/json` and `Authorization: Bearer <device-token>`[m
+ [m
+[31m-The API requires a random token of at least 32 bytes, rejects missing or invalid credentials, limits request bodies to 8 KB, and validates every field against the existing dashboard schema. The payload below is a **template, not valid JSON**: replace each placeholder with a correctly typed value from the actual receiver. Do not send fabricated values during hardware integration.[m
+[32m+[m[32mThe API requires a random token of at least 32 bytes, rejects missing or invalid credentials, limits request bodies to 8 KB, and validates every field against the existing dashboard schema. The payload below is an illustrative JSONC template, not a directly executable request: its placeholders are explanatory text, not actual values. Replace each placeholder with a correctly typed value from the actual receiver. Do not send fabricated values during hardware integration.[m
+ [m
+ ```jsonc[m
+[32m+[m[32m// Illustrative only: replace every placeholder before submitting a request.[m
+ {[m
+   "deviceId": "VB-01",[m
+   "heartRateBpm": "<actual integer from 30 through 220>",[m

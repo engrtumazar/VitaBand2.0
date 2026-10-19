@@ -3,7 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash, timingSafeEqual } = require('node:crypto');
 const { validateDevicePayload } = require('./device-payload');
-const host = process.env.HOST || '127.0.0.1';
+const { validatePhoneLocation } = require('./phone-location');
+const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 const port = Number(process.env.PORT || 3000);
 const deviceStaleAfterMs = Number(process.env.DEVICE_STALE_AFTER_MS || 120000);
 const maxHistoryEntries = 1000;
@@ -99,6 +100,7 @@ function matchesReading(left, right) {
     left?.gps?.status === right.gps.status &&
     left?.gps?.latitude === right.gps.latitude &&
     left?.gps?.longitude === right.gps.longitude &&
+    left?.sosPressed === right.sosPressed &&
     new Date(left?.updatedAt).getTime() === new Date(right.updatedAt).getTime();
 }
 
@@ -126,12 +128,20 @@ async function ingestDeviceReading(request, response) {
     return;
   }
 
+  const receivedAt = new Date().toISOString();
   try {
     const { getDatabase } = require('firebase-admin/database');
     const { app } = require('./firebase-admin');
     const readingTimestamp = Date.parse(reading.updatedAt);
     const historyKey = String(readingTimestamp);
     const messageHash = createHash('sha256').update(JSON.stringify(reading)).digest('hex');
+    const receivedSosEvent = reading.sosPressed
+      ? {
+          status: 'received',
+          requestedAt: reading.updatedAt,
+          receivedAt
+        }
+      : null;
     let duplicate = false;
     let conflict = false;
     let historicalOnly = false;
@@ -155,6 +165,7 @@ async function ingestDeviceReading(request, response) {
 
       history[historyKey] = {
         timestamp: reading.updatedAt,
+        receivedAt,
         heartRateBpm: reading.heartRateBpm,
         messageHash
       };
@@ -164,6 +175,11 @@ async function ingestDeviceReading(request, response) {
         delete history[key];
       }
 
+      const currentSosTimestamp = Date.parse(current?.sosEvent?.requestedAt);
+      const sosEvent = receivedSosEvent &&
+        (!Number.isFinite(currentSosTimestamp) || currentSosTimestamp <= readingTimestamp)
+        ? receivedSosEvent
+        : current?.sosEvent;
       const currentTimestamp = current ? new Date(current.updatedAt).getTime() : Number.NaN;
       if (current && !Number.isFinite(currentTimestamp)) {
         invalidCurrentRecord = true;
@@ -171,9 +187,10 @@ async function ingestDeviceReading(request, response) {
       }
       if (Number.isFinite(currentTimestamp) && currentTimestamp > readingTimestamp) {
         historicalOnly = true;
-        return { ...current, history };
+        return { ...current, history, ...(sosEvent ? { sosEvent } : {}) };
       }
-      return { ...reading, history };
+      const { sosPressed, ...deviceReading } = reading;
+      return { ...deviceReading, receivedAt, history, ...(sosEvent ? { sosEvent } : {}) };
     }, undefined, false);
 
     if (duplicate) {
@@ -375,6 +392,93 @@ async function getAuthenticatedUser(request) {
       return { statusCode: 503, error: 'Firebase Admin is not configured. Check the server credential environment variable.' };
     }
     return { statusCode: 401, error: 'Could not verify sign-in. Please sign in again.' };
+  }
+}
+
+async function authorizePhoneLocationRequest(request, response) {
+  if (!isAllowedRequestOrigin(request)) {
+    sendJson(response, 403, { error: 'Phone location origin is not allowed.' });
+    return null;
+  }
+  const authResult = await getAuthenticatedUser(request);
+  if (authResult.statusCode) {
+    sendJson(response, authResult.statusCode, { error: authResult.error });
+    return null;
+  }
+
+  try {
+    const { getDatabase } = require('firebase-admin/database');
+    const { app } = require('./firebase-admin');
+    const database = getDatabase(app);
+    const user = authResult.user;
+    const isAdmin = Boolean(configuredAdminEmail()) &&
+      user.email?.toLowerCase() === configuredAdminEmail();
+    if (!isAdmin) {
+      const approved = await database.ref(`approvedOperators/${user.uid}`).get();
+      if (approved.val() !== true) {
+        sendJson(response, 403, { error: 'Only approved dashboard users can share a phone location.' });
+        return null;
+      }
+    }
+    return { database, user, isAdmin };
+  } catch (error) {
+    console.error('Could not authorize phone location sharing:', error.code || error.message);
+    sendJson(response, 503, { error: 'Could not verify phone location access. Try again.' });
+    return null;
+  }
+}
+
+async function managePhoneLocation(request, response) {
+  const authorization = await authorizePhoneLocationRequest(request, response);
+  if (!authorization) return;
+
+  const locationRef = authorization.database.ref('deviceLocations/VB-01');
+  if (request.method === 'DELETE') {
+    try {
+      const existing = await locationRef.get();
+      const ownerUid = existing.child('ownerUid').val();
+      if (ownerUid && ownerUid !== authorization.user.uid && !authorization.isAdmin) {
+        sendJson(response, 403, { error: 'Only the phone currently sharing this location can stop sharing it.' });
+        return;
+      }
+      await locationRef.remove();
+      sendJson(response, 200, { status: 'cleared' });
+    } catch (error) {
+      console.error('Could not clear phone location:', error.code || error.message);
+      sendJson(response, 503, { error: 'Could not stop phone location sharing.' });
+    }
+    return;
+  }
+
+  if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) {
+    sendJson(response, 415, { error: 'Phone locations must be sent as JSON.' });
+    return;
+  }
+
+  let location;
+  try {
+    location = validatePhoneLocation(await readJsonBody(request, 1024));
+  } catch (error) {
+    sendJson(response, error.statusCode || 400, { error: error.message });
+    return;
+  }
+
+  const receivedAt = new Date().toISOString();
+  const capturedAt = location.capturedAt;
+  try {
+    await locationRef.set({
+      source: 'phone',
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracyM: location.accuracyM,
+      capturedAt,
+      receivedAt,
+      ownerUid: authorization.user.uid
+    });
+    sendJson(response, 200, { status: 'stored', capturedAt });
+  } catch (error) {
+    console.error('Could not store phone location:', error.code || error.message);
+    sendJson(response, 503, { error: 'Could not store the phone location.' });
   }
 }
 
@@ -682,6 +786,14 @@ const server = http.createServer((request, response) => {
     ingestDeviceReading(request, response).catch(error => {
       console.error('Device reading ingestion failed:', error.code || error.message);
       if (!response.headersSent) sendJson(response, 500, { error: 'Could not process the device reading.' });
+      else response.destroy(error);
+    });
+    return;
+  }
+  if (request.url === '/api/device/phone-location' && ['POST', 'DELETE'].includes(request.method)) {
+    managePhoneLocation(request, response).catch(error => {
+      console.error('Phone location request failed:', error.code || error.message);
+      if (!response.headersSent) sendJson(response, 500, { error: 'Could not process the phone location request.' });
       else response.destroy(error);
     });
     return;

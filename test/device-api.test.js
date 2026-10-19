@@ -37,6 +37,23 @@ test('rejects missing or incorrect device bearer tokens', async () => {
   }
 });
 
+test('rejects phone location sharing requests without an allowed origin', async () => {
+  for (const method of ['POST', 'DELETE']) {
+    const response = await fetch(`${baseUrl}/api/device/phone-location`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: method === 'POST' ? JSON.stringify({
+        latitude: 14.5995,
+        longitude: 120.9842,
+        accuracyM: 10,
+        capturedAt: Date.now()
+      }) : undefined
+    });
+    assert.equal(response.status, 403);
+    assert.match((await response.json()).error, /origin is not allowed/);
+  }
+});
+
 test('rejects malformed readings before accessing Firebase', async () => {
   const response = await fetch(`${baseUrl}/api/device/readings`, {
     method: 'POST',

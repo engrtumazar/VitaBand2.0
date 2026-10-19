@@ -23,6 +23,12 @@ test('normalizes a valid reading using the existing VB-01 schema', () => {
   assert.deepEqual(result.gps, { status: 'no_fix' });
 });
 
+test('accepts a boolean SOS button event and rejects non-boolean values', () => {
+  assert.equal(validateDevicePayload(payload({ sosPressed: true }), now).sosPressed, true);
+  assert.equal(validateDevicePayload(payload({ sosPressed: false }), now).sosPressed, undefined);
+  assert.throws(() => validateDevicePayload(payload({ sosPressed: 'true' }), now), /sosPressed/);
+});
+
 test('rejects unsupported devices, fields, and measurement ranges', () => {
   assert.throws(() => validateDevicePayload(payload({ deviceId: 'VB-02' }), now), /deviceId/);
   assert.throws(() => validateDevicePayload(payload({ heartRateBpm: 221 }), now), /heartRateBpm/);

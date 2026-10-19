@@ -8,6 +8,7 @@ const allowedPayloadFields = new Set([
   'movementStatus',
   'gps',
   'loraStatus',
+  'sosPressed',
   'updatedAt'
 ]);
 
@@ -78,6 +79,9 @@ function validateDevicePayload(payload, now = Date.now()) {
   if (!validLoraStatuses.has(payload.loraStatus)) {
     throw new Error('loraStatus must be receiving or disconnected.');
   }
+  if (Object.hasOwn(payload, 'sosPressed') && typeof payload.sosPressed !== 'boolean') {
+    throw new Error('sosPressed must be a boolean.');
+  }
 
   const normalized = {
     deviceId,
@@ -87,6 +91,9 @@ function validateDevicePayload(payload, now = Date.now()) {
     loraStatus: payload.loraStatus,
     updatedAt: normalizeTimestamp(payload.updatedAt, now)
   };
+  if (payload.sosPressed === true) {
+    normalized.sosPressed = payload.sosPressed;
+  }
   if (hasLatitude) {
     normalized.gps.latitude = payload.gps.latitude;
     normalized.gps.longitude = payload.gps.longitude;
