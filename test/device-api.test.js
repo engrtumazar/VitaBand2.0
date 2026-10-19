@@ -37,28 +37,10 @@ test('rejects missing or incorrect device bearer tokens', async () => {
   }
 });
 
-test('protects base-station phone-location reads with the device bearer token', async () => {
-  const response = await fetch(`${baseUrl}/api/device/phone-location`, {
-    headers: { Authorization: 'Bearer incorrect-device-token' }
-  });
-  assert.equal(response.status, 401);
-  assert.match((await response.json()).error, /device bearer token/);
-});
-
-test('rejects phone location sharing requests without an allowed origin', async () => {
-  for (const method of ['POST', 'DELETE']) {
-    const response = await fetch(`${baseUrl}/api/device/phone-location`, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: method === 'POST' ? JSON.stringify({
-        latitude: 14.5995,
-        longitude: 120.9842,
-        accuracyM: 10,
-        capturedAt: Date.now()
-      }) : undefined
-    });
-    assert.equal(response.status, 403);
-    assert.match((await response.json()).error, /origin is not allowed/);
+test('does not expose phone-location endpoints', async () => {
+  for (const [method, expectedStatus] of [['GET', 404], ['POST', 405], ['DELETE', 405]]) {
+    const response = await fetch(`${baseUrl}/api/device/phone-location`, { method });
+    assert.equal(response.status, expectedStatus);
   }
 });
 

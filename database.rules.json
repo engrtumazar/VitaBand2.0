@@ -17,12 +17,6 @@
         ".read": "auth != null && root.child('approvedOperators').child(auth.uid).val() == true",
         ".write": false
       }
-    },
-    "deviceLocations": {
-      "VB-01": {
-        ".read": "auth != null && root.child('approvedOperators').child(auth.uid).val() == true",
-        ".write": false
-      }
     }
   }
 }

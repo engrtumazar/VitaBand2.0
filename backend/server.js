@@ -3,7 +3,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash, timingSafeEqual } = require('node:crypto');
 const { validateDevicePayload } = require('./device-payload');
-const { validatePhoneLocation } = require('./phone-location');
 const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 const port = Number(process.env.PORT || 3000);
 const deviceStaleAfterMs = Number(process.env.DEVICE_STALE_AFTER_MS || 120000);
@@ -395,151 +394,6 @@ async function getAuthenticatedUser(request) {
   }
 }
 
-async function authorizePhoneLocationRequest(request, response) {
-  if (!isAllowedRequestOrigin(request)) {
-    sendJson(response, 403, { error: 'Phone location origin is not allowed.' });
-    return null;
-  }
-  const authResult = await getAuthenticatedUser(request);
-  if (authResult.statusCode) {
-    sendJson(response, authResult.statusCode, { error: authResult.error });
-    return null;
-  }
-
-  try {
-    const { getDatabase } = require('firebase-admin/database');
-    const { app } = require('./firebase-admin');
-    const database = getDatabase(app);
-    const user = authResult.user;
-    const isAdmin = Boolean(configuredAdminEmail()) &&
-      user.email?.toLowerCase() === configuredAdminEmail();
-    if (!isAdmin) {
-      const approved = await database.ref(`approvedOperators/${user.uid}`).get();
-      if (approved.val() !== true) {
-        sendJson(response, 403, { error: 'Only approved dashboard users can share a phone location.' });
-        return null;
-      }
-    }
-    return { database, user, isAdmin };
-  } catch (error) {
-    console.error('Could not authorize phone location sharing:', error.code || error.message);
-    sendJson(response, 503, { error: 'Could not verify phone location access. Try again.' });
-    return null;
-  }
-}
-
-async function managePhoneLocation(request, response) {
-  const authorization = await authorizePhoneLocationRequest(request, response);
-  if (!authorization) return;
-
-  const locationRef = authorization.database.ref('deviceLocations/VB-01');
-  if (request.method === 'DELETE') {
-    try {
-      const existing = await locationRef.get();
-      const ownerUid = existing.child('ownerUid').val();
-      if (ownerUid && ownerUid !== authorization.user.uid && !authorization.isAdmin) {
-        sendJson(response, 403, { error: 'Only the phone currently sharing this location can stop sharing it.' });
-        return;
-      }
-      await locationRef.remove();
-      sendJson(response, 200, { status: 'cleared' });
-    } catch (error) {
-      console.error('Could not clear phone location:', error.code || error.message);
-      sendJson(response, 503, { error: 'Could not stop phone location sharing.' });
-    }
-    return;
-  }
-
-  if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) {
-    sendJson(response, 415, { error: 'Phone locations must be sent as JSON.' });
-    return;
-  }
-
-  let location;
-  try {
-    location = validatePhoneLocation(await readJsonBody(request, 1024));
-  } catch (error) {
-    sendJson(response, error.statusCode || 400, { error: error.message });
-    return;
-  }
-
-  const receivedAt = new Date().toISOString();
-  const capturedAt = location.capturedAt;
-  try {
-    await locationRef.set({
-      source: 'phone',
-      latitude: location.latitude,
-      longitude: location.longitude,
-      accuracyM: location.accuracyM,
-      capturedAt,
-      receivedAt,
-      ownerUid: authorization.user.uid
-    });
-    sendJson(response, 200, { status: 'stored', capturedAt });
-  } catch (error) {
-    console.error('Could not store phone location:', error.code || error.message);
-    sendJson(response, 503, { error: 'Could not store the phone location.' });
-  }
-}
-
-async function getPhoneLocationForDevice(request, response) {
-  const configuredDeviceToken = process.env.VITABAND_DEVICE_TOKEN;
-  if (!configuredDeviceToken || Buffer.byteLength(configuredDeviceToken) < 32 ||
-      configuredDeviceToken.startsWith('replace-with-')) {
-    sendJson(response, 503, { error: 'Device location access requires a configured random token of at least 32 bytes.' });
-    return;
-  }
-  if (!hasValidDeviceToken(request)) {
-    sendJson(response, 401, { error: 'A valid device bearer token is required.' });
-    return;
-  }
-
-  try {
-    const { getDatabase } = require('firebase-admin/database');
-    const { app } = require('./firebase-admin');
-    const snapshot = await getDatabase(app).ref('deviceLocations/VB-01').get();
-    if (!snapshot.exists()) {
-      sendJson(response, 200, { status: 'unavailable' });
-      return;
-    }
-
-    const location = snapshot.val();
-    if (!location || typeof location !== 'object' || Array.isArray(location) ||
-        location.source !== 'phone' ||
-        typeof location.latitude !== 'number' || !Number.isFinite(location.latitude) ||
-        location.latitude < -90 || location.latitude > 90 ||
-        typeof location.longitude !== 'number' || !Number.isFinite(location.longitude) ||
-        location.longitude < -180 || location.longitude > 180 ||
-        typeof location.accuracyM !== 'number' || !Number.isFinite(location.accuracyM) ||
-        location.accuracyM < 0 || location.accuracyM > 100000 ||
-        typeof location.capturedAt !== 'string') {
-      throw new Error('Stored phone location is invalid.');
-    }
-
-    const capturedAt = new Date(location.capturedAt);
-    if (!Number.isFinite(capturedAt.getTime())) {
-      throw new Error('Stored phone location timestamp is invalid.');
-    }
-    const age = Date.now() - capturedAt.getTime();
-    if (age < -30000) throw new Error('Stored phone location timestamp is in the future.');
-    if (age > deviceStaleAfterMs) {
-      sendJson(response, 200, { status: 'unavailable' });
-      return;
-    }
-
-    sendJson(response, 200, {
-      status: 'available',
-      latitude: location.latitude,
-      longitude: location.longitude,
-      accuracyM: location.accuracyM,
-      capturedAt: capturedAt.toISOString()
-    });
-  } catch (error) {
-    console.error('Could not read phone location for device:', error.code || error.message);
-    sendJson(response, 503, { error: 'Could not read the phone location.' });
-  }
-}
-
 async function submitRegistrationRequest(request, response) {
   if (!isAllowedRequestOrigin(request)) {
     sendJson(response, 403, { error: 'Account request origin is not allowed.' });
@@ -844,22 +698,6 @@ const server = http.createServer((request, response) => {
     ingestDeviceReading(request, response).catch(error => {
       console.error('Device reading ingestion failed:', error.code || error.message);
       if (!response.headersSent) sendJson(response, 500, { error: 'Could not process the device reading.' });
-      else response.destroy(error);
-    });
-    return;
-  }
-  if (request.url === '/api/device/phone-location' && ['POST', 'DELETE'].includes(request.method)) {
-    managePhoneLocation(request, response).catch(error => {
-      console.error('Phone location request failed:', error.code || error.message);
-      if (!response.headersSent) sendJson(response, 500, { error: 'Could not process the phone location request.' });
-      else response.destroy(error);
-    });
-    return;
-  }
-  if (request.url === '/api/device/phone-location' && request.method === 'GET') {
-    getPhoneLocationForDevice(request, response).catch(error => {
-      console.error('Could not read phone location for device:', error.code || error.message);
-      if (!response.headersSent) sendJson(response, 500, { error: 'Could not read the phone location.' });
       else response.destroy(error);
     });
     return;
