@@ -95,6 +95,32 @@ function parseDeviceRecord(value) {
   };
 }
 
+function parsePhoneLocation(value) {
+  if (value === undefined || value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      value.source !== 'phone' ||
+      typeof value.latitude !== 'number' || !Number.isFinite(value.latitude) ||
+      value.latitude < -90 || value.latitude > 90 ||
+      typeof value.longitude !== 'number' || !Number.isFinite(value.longitude) ||
+      value.longitude < -180 || value.longitude > 180 ||
+      typeof value.accuracyM !== 'number' || !Number.isFinite(value.accuracyM) ||
+      value.accuracyM < 0 || value.accuracyM > 100000) {
+    throw new Error('Firebase phone location must include valid coordinates and accuracy.');
+  }
+  const capturedAt = new Date(value.capturedAt);
+  const receivedAt = new Date(value.receivedAt);
+  if (!Number.isFinite(capturedAt.getTime()) || !Number.isFinite(receivedAt.getTime())) {
+    throw new Error('Firebase phone location must include valid capture and receipt times.');
+  }
+  return {
+    latitude: value.latitude,
+    longitude: value.longitude,
+    accuracyM: value.accuracyM,
+    capturedAt: capturedAt.toISOString(),
+    receivedAt: receivedAt.toISOString()
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const themeToggle = document.getElementById('themeToggle');
   const savedTheme = localStorage.getItem('vitaband-theme');
@@ -584,47 +610,107 @@ document.addEventListener('DOMContentLoaded', () => {
     markerAnimationFrame = requestAnimationFrame(step);
   }
 
+  let latestPhoneLocation = null;
+  let lastMapLocationSource = null;
+  let phoneLocationWatchId = null;
+  let lastPhoneLocationSentAt = 0;
+  let isPhoneLocationSharing = false;
+  let phoneLocationSendPromise = null;
+  function getMapLocation() {
+    const now = Date.now();
+    const deviceUpdatedAt = latestDevice ? Date.parse(latestDevice.updatedAt) : Number.NaN;
+    const deviceAge = now - deviceUpdatedAt;
+    const hasDeviceFix = latestDevice?.gps.status === 'fix';
+    const deviceFixFresh = hasDeviceFix && Number.isFinite(deviceAge) &&
+      deviceAge >= -30000 && deviceAge <= deviceStaleAfterMs;
+    if (deviceFixFresh) {
+      return {
+        source: 'gps',
+        latitude: latestDevice.gps.latitude,
+        longitude: latestDevice.gps.longitude,
+        timestamp: latestDevice.updatedAt,
+        freshness: 'live'
+      };
+    }
+
+    const fallbackLocations = [];
+    const phoneCapturedAt = latestPhoneLocation ? Date.parse(latestPhoneLocation.capturedAt) : Number.NaN;
+    const phoneAge = now - phoneCapturedAt;
+    if (latestPhoneLocation && Number.isFinite(phoneAge) && phoneAge >= -30000) {
+      const phoneFallback = {
+        source: 'phone',
+        latitude: latestPhoneLocation.latitude,
+        longitude: latestPhoneLocation.longitude,
+        timestamp: latestPhoneLocation.capturedAt,
+        accuracyM: latestPhoneLocation.accuracyM,
+        freshness: phoneAge <= deviceStaleAfterMs ? 'live' : 'stale'
+      };
+      if (phoneFallback.freshness === 'live') return phoneFallback;
+      fallbackLocations.push(phoneFallback);
+    }
+
+    if (hasDeviceFix) {
+      fallbackLocations.push({
+        source: 'gps',
+        latitude: latestDevice.gps.latitude,
+        longitude: latestDevice.gps.longitude,
+        timestamp: latestDevice.updatedAt,
+        freshness: 'stale'
+      });
+    }
+    return fallbackLocations.sort((left, right) =>
+      Date.parse(right.timestamp) - Date.parse(left.timestamp)
+    )[0] || null;
+  }
+
   function renderMapLocation() {
-    const hasGpsFix = latestDevice?.gps.status === 'fix';
-    const updatedAt = latestDevice ? Date.parse(latestDevice.updatedAt) : Number.NaN;
-    const age = Date.now() - updatedAt;
-    const timestampUsable = Number.isFinite(updatedAt) && age >= -30000;
-    const isFresh = timestampUsable && age <= deviceStaleAfterMs;
+    const selectedLocation = getMapLocation();
     const mapLocationSource = document.getElementById('mapLocationSource');
     const mapLocationUpdatedAt = document.getElementById('mapLocationUpdatedAt');
     const mapFooter = document.querySelector('.map-coords');
-    if (!hasGpsFix) {
+    if (!selectedLocation) {
       mapTrackingStatus.className = 'map-tracking-status waiting';
-      mapTrackingStatus.lastElementChild.textContent = latestDevice ? 'GPS SIGNAL UNAVAILABLE' : 'WAITING FOR GPS';
-      mapLocationSource.textContent = 'Waiting for GPS';
+      mapTrackingStatus.lastElementChild.textContent = 'GPS SIGNAL UNAVAILABLE';
+      mapLocationSource.textContent = 'Waiting for location';
       mapLocationUpdatedAt.textContent = 'Not recorded';
       mapLocationUpdatedAt.removeAttribute('datetime');
-      mapFooter.textContent = 'WAITING FOR GPS';
-      document.getElementById('mapLegendLabel').textContent = 'VB-01 GPS position unavailable';
+      mapFooter.textContent = 'WAITING FOR LOCATION';
+      document.getElementById('mapLegendLabel').textContent = 'VB-01 position unavailable';
       if (deviceMarker) deviceMarker.getElement().hidden = true;
-      return;
+      lastMapLocationSource = null;
+      return null;
     }
 
-    const timestamp = new Date(updatedAt);
-    mapTrackingStatus.className = `map-tracking-status ${isFresh ? 'live' : 'stale'}`;
-    mapTrackingStatus.lastElementChild.textContent = isFresh ? 'LIVE GPS LOCK' : 'STALE GPS LOCATION';
-    mapLocationSource.textContent = `Device GPS · ${isFresh ? 'live' : 'stale'}`;
+    const label = selectedLocation.source === 'phone' ? 'Phone location' : 'Device GPS';
+    const timestamp = new Date(selectedLocation.timestamp);
+    mapTrackingStatus.className = `map-tracking-status ${selectedLocation.freshness}`;
+    mapTrackingStatus.lastElementChild.textContent = selectedLocation.freshness === 'live'
+      ? selectedLocation.source === 'phone' ? 'LIVE PHONE LOCATION' : 'LIVE GPS LOCK'
+      : selectedLocation.source === 'phone' ? 'STALE PHONE LOCATION' : 'STALE GPS LOCATION';
+    mapLocationSource.textContent = `${label} · ${selectedLocation.freshness}`;
     mapLocationUpdatedAt.textContent = timestamp.toLocaleString();
     mapLocationUpdatedAt.dateTime = timestamp.toISOString();
-    mapFooter.textContent = 'DEVICE GPS LOCATION';
-    document.getElementById('mapLegendLabel').textContent = 'VB-01 · Device GPS';
+    mapFooter.textContent = selectedLocation.source === 'phone'
+      ? `PHONE LOCATION · ±${Math.round(selectedLocation.accuracyM)} M`
+      : 'DEVICE GPS LOCATION';
+    document.getElementById('mapLegendLabel').textContent = selectedLocation.source === 'phone'
+      ? 'VB-01 · Phone location'
+      : 'VB-01 · Device GPS';
 
-    if (!locationMap) return;
-    const coordinates = [latestDevice.gps.longitude, latestDevice.gps.latitude];
+    if (!locationMap) return selectedLocation;
+    const coordinates = [selectedLocation.longitude, selectedLocation.latitude];
+    const sourceChanged = selectedLocation.source !== lastMapLocationSource;
+    const popupText = selectedLocation.source === 'phone'
+      ? `VB-01 · Phone-reported location (±${Math.round(selectedLocation.accuracyM)} m)`
+      : 'VB-01 · Device GPS location';
     if (!deviceMarker) {
       const markerElement = document.createElement('div');
       markerElement.className = 'unit-marker';
       markerElement.setAttribute('role', 'img');
-      markerElement.setAttribute('aria-label', 'VitaBand VB-01 device GPS location');
       markerElement.innerHTML = `<span class="unit-marker__reticle" aria-hidden="true"><span class="unit-marker__pulse"></span><span class="unit-marker__ring"></span><span class="unit-marker__crosshair"></span><span class="unit-marker__center"></span></span><span class="unit-marker__label">VB-01</span>`;
       deviceMarker = new maplibregl.Marker({ element: markerElement, anchor: 'left' })
         .setLngLat(coordinates)
-        .setPopup(new maplibregl.Popup({ offset: 28 }).setText('VB-01 · Device GPS location'))
+        .setPopup(new maplibregl.Popup({ offset: 28 }).setText(popupText))
         .addTo(locationMap);
       locationMap.easeTo({ center: coordinates, zoom: 16, duration: 700, essential: true });
       markerElement.hidden = false;
@@ -632,6 +718,9 @@ document.addEventListener('DOMContentLoaded', () => {
       lastGpsCoordinate = coordinates;
     } else {
       deviceMarker.getElement().hidden = false;
+      if (sourceChanged) {
+        deviceMarker.setPopup(new maplibregl.Popup({ offset: 28 }).setText(popupText));
+      }
       const hasMoved = !lastGpsCoordinate ||
         lastGpsCoordinate[0] !== coordinates[0] ||
         lastGpsCoordinate[1] !== coordinates[1];
@@ -644,6 +733,12 @@ document.addEventListener('DOMContentLoaded', () => {
         locationMap.easeTo({ center: coordinates, duration: 700, essential: true });
       }
     }
+    if (sourceChanged && deviceMarker) {
+      deviceMarker.getElement().setAttribute('aria-label',
+        selectedLocation.source === 'phone' ? 'VB-01 phone-reported location' : 'VitaBand VB-01 device GPS location');
+    }
+    lastMapLocationSource = selectedLocation.source;
+    return selectedLocation;
   }
 
   const apiStatus = document.getElementById('apiStatus');
@@ -654,6 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let stopDeviceListener = null;
   let deviceStaleAfterMs = 120000;
   let deviceFreshnessTimer = null;
+  let stopPhoneLocationListener = null;
   function setFirebaseStatus(message, online) {
     apiStatus.textContent = message;
     apiStatus.parentElement.setAttribute('aria-label', message);
@@ -677,8 +773,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const healthStatus = document.getElementById('deviceHealthStatus');
     const dataModeTag = document.getElementById('dataModeTag');
     const activityStatus = document.getElementById('activityStatus');
-    renderMapLocation();
-    if (latestDevice?.gps.status === 'fix') {
+    const selectedLocation = renderMapLocation();
+    if (selectedLocation?.source === 'phone') {
+      document.getElementById('gpsValue').textContent =
+        selectedLocation.freshness === 'live' ? 'Phone location' : 'Stale phone location';
+      document.getElementById('gpsFoot').textContent =
+        `±${Math.round(selectedLocation.accuracyM)} m · ${new Date(selectedLocation.timestamp).toLocaleTimeString()}`;
+    } else if (latestDevice?.gps.status === 'fix') {
       document.getElementById('gpsValue').textContent = 'Fix acquired';
       document.getElementById('gpsFoot').textContent =
         `${latestDevice.gps.latitude.toFixed(4)}, ${latestDevice.gps.longitude.toFixed(4)}`;
@@ -686,7 +787,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('gpsValue').textContent = latestDevice ? 'No GPS fix' : 'Waiting';
       document.getElementById('gpsFoot').textContent = latestDevice
         ? 'Waiting for GPS signal'
-        : 'Waiting for Firebase data';
+        : 'Waiting for location data';
     }
     if (!latestDevice) {
       connectionStatus.className = 'status-chip unknown-chip';
@@ -715,6 +816,108 @@ document.addEventListener('DOMContentLoaded', () => {
     dataModeTag.textContent = isOnline ? 'LIVE READING' : isFresh ? 'RECEIVER OFFLINE' : 'STALE DATA';
     activityStatus.textContent = isFresh ? 'READING RECEIVED' : 'STALE READING';
   }
+
+  const startPhoneLocationButton = document.getElementById('startPhoneLocationButton');
+  const stopPhoneLocationButton = document.getElementById('stopPhoneLocationButton');
+  const phoneLocationHelp = document.getElementById('phoneLocationHelp');
+  async function sendPhoneLocation(position) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Sign in again before sharing phone location.');
+    const token = await user.getIdToken();
+    const response = await fetch('/api/device/phone-location', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracyM: position.coords.accuracy,
+        capturedAt: Math.round(position.timestamp)
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not share this phone location.');
+    phoneLocationHelp.textContent =
+      `Sharing this phone's location · accuracy ±${Math.round(position.coords.accuracy)} m · last sent ${new Date(position.timestamp).toLocaleTimeString()}.`;
+  }
+
+  async function clearPhoneLocationOnServer() {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Sign in again before stopping phone location sharing.');
+    const token = await user.getIdToken();
+    const response = await fetch('/api/device/phone-location', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not stop phone location sharing.');
+  }
+
+  function stopPhoneLocationWatch() {
+    if (phoneLocationWatchId !== null) {
+      navigator.geolocation.clearWatch(phoneLocationWatchId);
+      phoneLocationWatchId = null;
+    }
+    isPhoneLocationSharing = false;
+    startPhoneLocationButton.hidden = false;
+    stopPhoneLocationButton.hidden = true;
+  }
+
+  startPhoneLocationButton.addEventListener('click', () => {
+    if (!window.isSecureContext || !navigator.geolocation) {
+      notify('<strong>Secure connection required.</strong> Open the dashboard over HTTPS on the Android phone to use location.');
+      return;
+    }
+    if (!auth.currentUser) {
+      notify('<strong>Sign in required.</strong> Sign in with an approved dashboard account first.');
+      return;
+    }
+    isPhoneLocationSharing = true;
+    startPhoneLocationButton.hidden = true;
+    stopPhoneLocationButton.hidden = false;
+    lastPhoneLocationSentAt = 0;
+    phoneLocationHelp.textContent = 'Waiting for an Android GPS reading. Keep this dashboard open while sharing.';
+    phoneLocationWatchId = navigator.geolocation.watchPosition(position => {
+      if (!isPhoneLocationSharing) return;
+      const now = Date.now();
+      if (phoneLocationSendPromise || now - lastPhoneLocationSentAt < 15000) return;
+      lastPhoneLocationSentAt = now;
+      phoneLocationSendPromise = sendPhoneLocation(position)
+        .catch(error => {
+          if (!isPhoneLocationSharing) return;
+          stopPhoneLocationWatch();
+          phoneLocationHelp.textContent = error.message;
+          notify('<strong>Phone location was not sent.</strong> Check connection and account access.');
+        })
+        .finally(() => { phoneLocationSendPromise = null; });
+    }, error => {
+      stopPhoneLocationWatch();
+      const message = error.code === error.PERMISSION_DENIED
+        ? 'Location permission was denied. Allow location for this site in Android settings and try again.'
+        : error.code === error.TIMEOUT
+          ? 'The phone could not get a location fix in time. Move outdoors and try again.'
+          : 'The phone could not read its location. Check that Android Location is enabled.';
+      phoneLocationHelp.textContent = message;
+      notify(`<strong>Phone location unavailable.</strong> ${message}`);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  });
+
+  stopPhoneLocationButton.addEventListener('click', async () => {
+    stopPhoneLocationWatch();
+    startPhoneLocationButton.disabled = true;
+    phoneLocationHelp.textContent = 'Phone location sharing stopped.';
+    try {
+      if (phoneLocationSendPromise) await phoneLocationSendPromise;
+      await clearPhoneLocationOnServer();
+    } catch (error) {
+      phoneLocationHelp.textContent = `Sharing stopped on this phone, but the last point could not be cleared: ${error.message}`;
+      notify('<strong>Could not clear the last phone location.</strong> It will become stale after the location timeout.');
+    } finally {
+      startPhoneLocationButton.disabled = false;
+    }
+  });
 
   function clearDeviceData() {
     latestDevice = null;
@@ -962,14 +1165,24 @@ document.addEventListener('DOMContentLoaded', () => {
         reportDatabaseError(error);
       }
     }, reportDatabaseError);
+    stopPhoneLocationListener = onValue(ref(database, 'deviceLocations/VB-01'), snapshot => {
+      try {
+        latestPhoneLocation = parsePhoneLocation(snapshot.exists() ? snapshot.val() : null);
+        updateDeviceFreshness();
+      } catch (error) {
+        reportDatabaseError(error);
+      }
+    }, reportDatabaseError);
   }, error => {
     setFirebaseStatus('FIREBASE AUTH ERROR', false);
     console.error('Could not check Firebase operator session:', error);
   });
   window.addEventListener('pagehide', () => {
     if (stopDeviceListener) stopDeviceListener();
+    if (stopPhoneLocationListener) stopPhoneLocationListener();
     if (adminRequestTimer) clearInterval(adminRequestTimer);
     if (deviceFreshnessTimer) clearInterval(deviceFreshnessTimer);
+    if (isPhoneLocationSharing) stopPhoneLocationWatch();
   }, { once: true });
 
   document.getElementById('logoutButton')?.addEventListener('click', async () => {

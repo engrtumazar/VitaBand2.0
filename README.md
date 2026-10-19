@@ -51,10 +51,10 @@ Render's Web Service provides the public HTTPS address and supplies the `PORT` e
 2. In the Render service's **Environment** settings, add `NODE_ENV=production`, `VITABAND_ADMIN_EMAIL` (the administrator's Firebase Auth email), and `VITABAND_DEVICE_TOKEN` (a newly generated random token of at least 32 bytes). Do not put secrets in the repository or share them in chat.
 3. Add the Firebase Admin service-account JSON as a Render **Secret File**, named `vitaband-service-account.json`, then set `GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/vitaband-service-account.json`. The service account must belong to `vitaband-d0f19`. Never commit this key.
 4. Deploy the service. In Render, copy its public `https://...onrender.com` URL. Set `VITABAND_ALLOWED_ORIGIN` to that exact origin (scheme and hostname only, no trailing slash or path), then redeploy if Render requests it. Keep the device token private.
-5. In Firebase Console, add the Render hostname under **Authentication → Settings → Authorized domains**. Publish the updated Realtime Database rules from [`database.rules.json`](database.rules.json).
-6. Open the Render HTTPS URL and sign in with an approved account.
+5. In Firebase Console, add the Render hostname under **Authentication → Settings → Authorized domains**. Publish the updated Realtime Database rules from [`database.rules.json`](database.rules.json), including the `deviceLocations/VB-01` read rule.
+6. Open the Render HTTPS URL on the Android phone, sign in with an approved account, allow precise location in Chrome, and select **Share this phone's location**. Keep the page open and the phone with the VitaBand wearer. Stop sharing when finished.
 
-Confirm the deployment is using HTTPS and that `/api/config` returns the device configuration before testing sign-in. If the Render service sleeps on its selected plan, the first request after inactivity may take time to wake it.
+Confirm the deployment is using HTTPS and that `/api/config` returns the device configuration before testing sign-in. Do not expose a development server or use a plain HTTP LAN address for phone geolocation. If the Render service sleeps on its selected plan, the first request after inactivity may take time to wake it.
 
 ## Device ingestion API
 
@@ -116,9 +116,11 @@ The dashboard charts only records under `devices/VB-01/history`; it does not con
 
 The live device map uses MapLibre GL JS with OpenFreeMap's Liberty vector style and OpenStreetMap data. It requires no map API key; map attribution is provided by the style. New GPS fixes update the device marker and the in-session movement trail.
 
-### GPS location
+### Android phone location fallback
 
-The dashboard map and OLED use only the wearable's onboard GPS coordinates relayed to the backend by the base station. When the GPS module has no satellite fix, the dashboard shows GPS unavailable/waiting instead of substituting another location source. For a better fix, place the GPS antenna facing the sky and away from batteries, displays, and other electronics, then allow time for satellite acquisition outdoors.
+On an Android phone, an approved dashboard user can select **Share this phone's location** in the map panel and grant the browser location permission. The phone must stay with the VitaBand wearer for its position to be a useful fallback. The dashboard prefers a fresh GPS fix reported by the band; it uses a fresh phone location only when that device GPS fix is unavailable or stale. The map labels the source and capture time so phone coordinates are not mistaken for a sensor GPS fix.
+
+Phone locations are written by the authenticated backend to `deviceLocations/VB-01`, separately from the device sensor record. Only approved dashboard users can read them, and Firebase client writes remain denied. Publish the updated [`database.rules.json`](database.rules.json) to enable reads. Sharing is opt-in, updates while the dashboard page is open, and can be stopped with **Stop sharing**. Use the dashboard over HTTPS on the phone; browser geolocation is unavailable on ordinary HTTP LAN addresses. This browser-based trial is foreground-only and is not a native Android background tracking app. If the page is closed or updates stop, the last phone position becomes stale after `DEVICE_STALE_AFTER_MS`.
 
 ## Operator accounts
 
