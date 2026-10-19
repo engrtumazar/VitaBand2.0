@@ -482,6 +482,64 @@ async function managePhoneLocation(request, response) {
   }
 }
 
+async function getPhoneLocationForDevice(request, response) {
+  const configuredDeviceToken = process.env.VITABAND_DEVICE_TOKEN;
+  if (!configuredDeviceToken || Buffer.byteLength(configuredDeviceToken) < 32 ||
+      configuredDeviceToken.startsWith('replace-with-')) {
+    sendJson(response, 503, { error: 'Device location access requires a configured random token of at least 32 bytes.' });
+    return;
+  }
+  if (!hasValidDeviceToken(request)) {
+    sendJson(response, 401, { error: 'A valid device bearer token is required.' });
+    return;
+  }
+
+  try {
+    const { getDatabase } = require('firebase-admin/database');
+    const { app } = require('./firebase-admin');
+    const snapshot = await getDatabase(app).ref('deviceLocations/VB-01').get();
+    if (!snapshot.exists()) {
+      sendJson(response, 200, { status: 'unavailable' });
+      return;
+    }
+
+    const location = snapshot.val();
+    if (!location || typeof location !== 'object' || Array.isArray(location) ||
+        location.source !== 'phone' ||
+        typeof location.latitude !== 'number' || !Number.isFinite(location.latitude) ||
+        location.latitude < -90 || location.latitude > 90 ||
+        typeof location.longitude !== 'number' || !Number.isFinite(location.longitude) ||
+        location.longitude < -180 || location.longitude > 180 ||
+        typeof location.accuracyM !== 'number' || !Number.isFinite(location.accuracyM) ||
+        location.accuracyM < 0 || location.accuracyM > 100000 ||
+        typeof location.capturedAt !== 'string') {
+      throw new Error('Stored phone location is invalid.');
+    }
+
+    const capturedAt = new Date(location.capturedAt);
+    if (!Number.isFinite(capturedAt.getTime())) {
+      throw new Error('Stored phone location timestamp is invalid.');
+    }
+    const age = Date.now() - capturedAt.getTime();
+    if (age < -30000) throw new Error('Stored phone location timestamp is in the future.');
+    if (age > deviceStaleAfterMs) {
+      sendJson(response, 200, { status: 'unavailable' });
+      return;
+    }
+
+    sendJson(response, 200, {
+      status: 'available',
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracyM: location.accuracyM,
+      capturedAt: capturedAt.toISOString()
+    });
+  } catch (error) {
+    console.error('Could not read phone location for device:', error.code || error.message);
+    sendJson(response, 503, { error: 'Could not read the phone location.' });
+  }
+}
+
 async function submitRegistrationRequest(request, response) {
   if (!isAllowedRequestOrigin(request)) {
     sendJson(response, 403, { error: 'Account request origin is not allowed.' });
@@ -794,6 +852,14 @@ const server = http.createServer((request, response) => {
     managePhoneLocation(request, response).catch(error => {
       console.error('Phone location request failed:', error.code || error.message);
       if (!response.headersSent) sendJson(response, 500, { error: 'Could not process the phone location request.' });
+      else response.destroy(error);
+    });
+    return;
+  }
+  if (request.url === '/api/device/phone-location' && request.method === 'GET') {
+    getPhoneLocationForDevice(request, response).catch(error => {
+      console.error('Could not read phone location for device:', error.code || error.message);
+      if (!response.headersSent) sendJson(response, 500, { error: 'Could not read the phone location.' });
       else response.destroy(error);
     });
     return;
