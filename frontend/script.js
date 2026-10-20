@@ -1276,6 +1276,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshButton').click();
   });
 
+  document.getElementById('phoneLocationSettingsButton')?.addEventListener('click', () => {
+    activeUtilitySection = '#settings';
+    updateActiveNavigation();
+    openDialog(settingsBackdrop, document.getElementById('closeSettings'));
+  });
+
   document.getElementById('mapViewButton')?.addEventListener('click', () => {
     const panel = document.querySelector('.map-panel');
     panel.classList.toggle('expanded');

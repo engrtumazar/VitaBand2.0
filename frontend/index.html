@@ -117,13 +117,9 @@
               <p>Band sensor sent <time id="sensorSentAt">Waiting for data</time></p>
               <p>Server received <time id="serverReceivedAt">Not recorded</time></p>
             </div>
-            <button class="subtle-button" id="mapViewButton"><i data-lucide="maximize-2"></i> Map view</button>
-          </div>
-          <div class="phone-location-control">
-            <p id="phoneLocationHelp">Phone GPS backup: start sharing only when this Android phone stays with the VitaBand wearer. Sharing stops when you stop it or close this page.</p>
-            <div>
-              <button class="subtle-button" id="startPhoneLocationButton" type="button"><i data-lucide="radio"></i> Share this phone's location</button>
-              <button class="subtle-button" id="stopPhoneLocationButton" type="button" hidden><i data-lucide="radio-off"></i> Stop sharing</button>
+            <div class="map-panel-actions">
+              <button class="subtle-button" id="phoneLocationSettingsButton" type="button"><i data-lucide="radio"></i> Share location</button>
+              <button class="subtle-button" id="mapViewButton" type="button"><i data-lucide="maximize-2"></i> Map view</button>
             </div>
           </div>
           <div class="map-area" id="mapArea" role="application" aria-label="Map showing the VitaBand device location">
@@ -197,6 +193,13 @@
             <div><span class="utility-label">DISPLAY</span><strong>Heart rate in BPM</strong></div>
             <p>Movement, GPS, and LoRa status are shown when valid device readings are available.</p>
           </article>
+        </div>
+        <div class="phone-location-control">
+          <p id="phoneLocationHelp">Phone GPS backup: start sharing only when this Android phone stays with the VitaBand wearer. Sharing stops when you stop it or close this page.</p>
+          <div>
+            <button class="subtle-button" id="startPhoneLocationButton" type="button"><i data-lucide="radio"></i> Share this phone's location</button>
+            <button class="subtle-button" id="stopPhoneLocationButton" type="button" hidden><i data-lucide="radio-off"></i> Stop sharing</button>
+          </div>
         </div>
         <div class="utility-actions" aria-label="Device dashboard actions">
           <button class="subtle-button" id="settingsRefreshButton" type="button"><i data-lucide="refresh-cw"></i> Refresh readings</button>
