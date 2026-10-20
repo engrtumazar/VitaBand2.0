@@ -678,20 +678,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     mapTrackingStatus.className = `map-tracking-status ${selectedLocation.freshness}`;
     mapTrackingStatus.lastElementChild.textContent = selectedLocation.freshness === 'live'
-      ? selectedLocation.source === 'phone' ? 'LIVE PHONE LOCATION' : 'LIVE GPS LOCK'
-      : selectedLocation.source === 'phone' ? 'STALE PHONE LOCATION' : 'STALE GPS LOCATION';
+      ? selectedLocation.source === 'phone' ? 'LIVE VB-01 LOCATION' : 'LIVE GPS LOCK'
+      : selectedLocation.source === 'phone' ? 'STALE VB-01 LOCATION' : 'STALE GPS LOCATION';
     mapFooter.textContent = selectedLocation.source === 'phone'
-      ? `PHONE LOCATION · ±${Math.round(selectedLocation.accuracyM)} M`
+      ? `VB-01 LOCATION · ±${Math.round(selectedLocation.accuracyM)} M`
       : 'DEVICE GPS LOCATION';
     document.getElementById('mapLegendLabel').textContent = selectedLocation.source === 'phone'
-      ? 'VB-01 · Phone location'
+      ? 'VB-01 Location'
       : 'VB-01 · Device GPS';
 
     if (!locationMap) return selectedLocation;
     const coordinates = [selectedLocation.longitude, selectedLocation.latitude];
     const sourceChanged = selectedLocation.source !== lastMapLocationSource;
     const popupText = selectedLocation.source === 'phone'
-      ? `VB-01 · Phone-reported location (±${Math.round(selectedLocation.accuracyM)} m)`
+      ? `VB-01 Location (±${Math.round(selectedLocation.accuracyM)} m)`
       : 'VB-01 · Device GPS location';
     if (!deviceMarker) {
       const markerElement = document.createElement('div');
@@ -725,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (sourceChanged && deviceMarker) {
       deviceMarker.getElement().setAttribute('aria-label',
-        selectedLocation.source === 'phone' ? 'VB-01 phone-reported location' : 'VitaBand VB-01 device GPS location');
+        selectedLocation.source === 'phone' ? 'VB-01 location' : 'VitaBand VB-01 device GPS location');
     }
     lastMapLocationSource = selectedLocation.source;
     return selectedLocation;
@@ -766,7 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedLocation = renderMapLocation();
     if (selectedLocation?.source === 'phone') {
       document.getElementById('gpsValue').textContent =
-        selectedLocation.freshness === 'live' ? 'Phone location' : 'Stale phone location';
+        selectedLocation.freshness === 'live' ? 'VB-01 Location' : 'Stale VB-01 Location';
       document.getElementById('gpsFoot').textContent =
         `±${Math.round(selectedLocation.accuracyM)} m · ${new Date(selectedLocation.timestamp).toLocaleTimeString()}`;
     } else if (latestDevice?.gps.status === 'fix') {
