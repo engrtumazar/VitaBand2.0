@@ -93,7 +93,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',sans-s
 .content-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(350px,.92fr);gap:16px}
 .panel{min-width:0;padding:18px}
 .panel-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:17px}
-.map-panel-actions{display:flex;flex:0 0 auto;gap:8px}
 .panel-header h2{margin:0;font:800 15px Manrope,sans-serif;letter-spacing:-.25px}
 .panel-header p{margin:6px 0 0;color:var(--muted);font-size:12px}
 .subtle-button{display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--olive-2);font:600 12px 'DM Sans',sans-serif;white-space:nowrap;cursor:pointer}

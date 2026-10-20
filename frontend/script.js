@@ -665,15 +665,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderMapLocation() {
     const selectedLocation = getMapLocation();
-    const mapLocationSource = document.getElementById('mapLocationSource');
-    const mapLocationUpdatedAt = document.getElementById('mapLocationUpdatedAt');
     const mapFooter = document.querySelector('.map-coords');
     if (!selectedLocation) {
       mapTrackingStatus.className = 'map-tracking-status waiting';
       mapTrackingStatus.lastElementChild.textContent = 'GPS SIGNAL UNAVAILABLE';
-      mapLocationSource.textContent = 'Waiting for location';
-      mapLocationUpdatedAt.textContent = 'Not recorded';
-      mapLocationUpdatedAt.removeAttribute('datetime');
       mapFooter.textContent = 'WAITING FOR LOCATION';
       document.getElementById('mapLegendLabel').textContent = 'VB-01 position unavailable';
       if (deviceMarker) deviceMarker.getElement().hidden = true;
@@ -681,15 +676,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return null;
     }
 
-    const label = selectedLocation.source === 'phone' ? 'Phone location' : 'Device GPS';
-    const timestamp = new Date(selectedLocation.timestamp);
     mapTrackingStatus.className = `map-tracking-status ${selectedLocation.freshness}`;
     mapTrackingStatus.lastElementChild.textContent = selectedLocation.freshness === 'live'
       ? selectedLocation.source === 'phone' ? 'LIVE PHONE LOCATION' : 'LIVE GPS LOCK'
       : selectedLocation.source === 'phone' ? 'STALE PHONE LOCATION' : 'STALE GPS LOCATION';
-    mapLocationSource.textContent = `${label} · ${selectedLocation.freshness}`;
-    mapLocationUpdatedAt.textContent = timestamp.toLocaleString();
-    mapLocationUpdatedAt.dateTime = timestamp.toISOString();
     mapFooter.textContent = selectedLocation.source === 'phone'
       ? `PHONE LOCATION · ±${Math.round(selectedLocation.accuracyM)} M`
       : 'DEVICE GPS LOCATION';
@@ -1274,12 +1264,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshButton')?.addEventListener('click', refreshDeviceData);
   document.getElementById('settingsRefreshButton')?.addEventListener('click', () => {
     document.getElementById('refreshButton').click();
-  });
-
-  document.getElementById('phoneLocationSettingsButton')?.addEventListener('click', () => {
-    activeUtilitySection = '#settings';
-    updateActiveNavigation();
-    openDialog(settingsBackdrop, document.getElementById('closeSettings'));
   });
 
   document.getElementById('mapViewButton')?.addEventListener('click', () => {
